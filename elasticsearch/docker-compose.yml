@@ -1,0 +1,316 @@
+version: "3.9"
+
+networks:
+  net-traefik:
+    external: true
+  internal:
+    driver: overlay
+    attachable: true
+    driver_opts:
+      encrypted: "true"
+
+
+x-common-elasticsearch: &common-elasticsearch
+  image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+  configs:
+    - source: elasticsearch-tls.key
+      target: /usr/share/elasticsearch/config/certificates/cert.key
+    - source: elasticsearch-tls.pem
+      target: /usr/share/elasticsearch/config/certificates/cert.pem
+    - source: elasticsearch-trustca.pem
+      target: /usr/share/elasticsearch/config/certificates/ca.pem
+  networks:
+    internal:
+  ports:
+    - target: 9200
+      published: 9200
+      mode: host
+
+services:
+
+
+  es_master_node_1:
+    <<: *common-elasticsearch
+    environment:
+      - node.name=es_master_node_1
+      - discovery.seed_hosts=es_master_node_2,es_master_node_3,es_data,es_ingest
+      - cluster.initial_master_nodes=es_master_node_1,es_master_node_2,es_master_node_3
+      - cluster.name=my-elasticsearch-cluster
+      - bootstrap.memory_lock=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - path.repo=/tmp/es-repo
+      - node.attr.testattr=test
+      - cluster.routing.allocation.disk.watermark.low=1b
+      - cluster.routing.allocation.disk.watermark.high=1b
+      - cluster.routing.allocation.disk.watermark.flood_stage=1b
+      - node.store.allow_mmap=false
+      - ingest.geoip.downloader.enabled=false
+      - xpack.security.enabled=true
+      - xpack.security.authc.token.enabled=true
+      - xpack.security.audit.enabled=true
+      - xpack.security.authc.realms.file.file1.order=0
+      - xpack.security.authc.realms.native.native1.order=1
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.client_authentication=optional
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.key=/usr/share/elasticsearch/config/certificates/cert.key
+      - xpack.security.transport.ssl.certificate=/usr/share/elasticsearch/config/certificates/cert.pem
+      - xpack.security.transport.ssl.certificate_authorities=/usr/share/elasticsearch/config/certificates/ca.pem
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.verification_mode=certificate
+      - xpack.security.http.ssl.key=/usr/share/elasticsearch/config/certificates/cert.key
+      - xpack.security.http.ssl.certificate=/usr/share/elasticsearch/config/certificates/cert.pem
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/certificates/ca.pem
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == vm-01
+          # - node.labels.type == master
+      resources:
+        limits:
+          memory: 1g
+    volumes:
+      - es_master_node_1_data:/usr/share/elasticsearch/data
+    ports:
+      - target: 9200
+        published: 9200
+        mode: host
+ 
+
+  es_master_node_2:
+    <<: *common-elasticsearch
+    environment:
+      - node.name=es_master_node_2
+      - discovery.seed_hosts=es_master_node_1,es_master_node_3,es_data,es_ingest
+      - cluster.initial_master_nodes=es_master_node_1,es_master_node_2,es_master_node_3
+      - cluster.name=my-elasticsearch-cluster
+      - bootstrap.memory_lock=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - path.repo=/tmp/es-repo
+      - node.attr.testattr=test
+      - cluster.routing.allocation.disk.watermark.low=1b
+      - cluster.routing.allocation.disk.watermark.high=1b
+      - cluster.routing.allocation.disk.watermark.flood_stage=1b
+      - node.store.allow_mmap=false
+      - ingest.geoip.downloader.enabled=false
+      - xpack.security.enabled=true
+      - xpack.security.authc.token.enabled=true
+      - xpack.security.audit.enabled=true
+      - xpack.security.authc.realms.file.file1.order=0
+      - xpack.security.authc.realms.native.native1.order=1
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.client_authentication=optional
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.key=/usr/share/elasticsearch/config/certificates/cert.key
+      - xpack.security.transport.ssl.certificate=/usr/share/elasticsearch/config/certificates/cert.pem
+      - xpack.security.transport.ssl.certificate_authorities=/usr/share/elasticsearch/config/certificates/ca.pem
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.verification_mode=certificate
+      - xpack.security.http.ssl.key=/usr/share/elasticsearch/config/certificates/cert.key
+      - xpack.security.http.ssl.certificate=/usr/share/elasticsearch/config/certificates/cert.pem
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/certificates/ca.pem
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == vm-02
+          # - node.labels.type == master
+      resources:
+        limits:
+          memory: 1g
+    volumes:
+      - es_master_node_2_data:/usr/share/elasticsearch/data
+    ports:
+      - target: 9200
+        published: 9200
+        mode: host 
+
+  es_master_node_3:
+    <<: *common-elasticsearch
+    environment:
+      - node.name=es_master_node_3
+      - discovery.seed_hosts=es_master_node_1,es_master_node_2,es_data,es_ingest
+      - cluster.initial_master_nodes=es_master_node_1,es_master_node_2,es_master_node_3
+      - cluster.name=my-elasticsearch-cluster
+      - bootstrap.memory_lock=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - path.repo=/tmp/es-repo
+      - node.attr.testattr=test
+      - cluster.routing.allocation.disk.watermark.low=1b
+      - cluster.routing.allocation.disk.watermark.high=1b
+      - cluster.routing.allocation.disk.watermark.flood_stage=1b
+      - node.store.allow_mmap=false
+      - ingest.geoip.downloader.enabled=false
+      - xpack.security.enabled=true
+      - xpack.security.authc.token.enabled=true
+      - xpack.security.audit.enabled=true
+      - xpack.security.authc.realms.file.file1.order=0
+      - xpack.security.authc.realms.native.native1.order=1
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.client_authentication=optional
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.key=/usr/share/elasticsearch/config/certificates/cert.key
+      - xpack.security.transport.ssl.certificate=/usr/share/elasticsearch/config/certificates/cert.pem
+      - xpack.security.transport.ssl.certificate_authorities=/usr/share/elasticsearch/config/certificates/ca.pem
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.verification_mode=certificate
+      - xpack.security.http.ssl.key=/usr/share/elasticsearch/config/certificates/cert.key
+      - xpack.security.http.ssl.certificate=/usr/share/elasticsearch/config/certificates/cert.pem
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/certificates/ca.pem
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == vm-03
+#          - node.labels.type == master
+      resources:
+        limits:
+          memory: 1g
+    volumes:
+      - es_master_node_3_data:/usr/share/elasticsearch/data
+    ports:
+      - target: 9200
+        published: 9200
+        mode: host  
+
+  es_data:
+    <<: *common-elasticsearch
+    environment:
+      - node.name=es_data
+      - discovery.seed_hosts=es_master_node_1,es_master_node_2,es_master_node_3,es_ingest
+      - cluster.initial_master_nodes=es_master_node_1,es_master_node_2,es_master_node_3
+      - cluster.name=my-elasticsearch-cluster
+      - bootstrap.memory_lock=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - path.repo=/tmp/es-repo
+      - node.attr.testattr=test
+      - cluster.routing.allocation.disk.watermark.low=1b
+      - cluster.routing.allocation.disk.watermark.high=1b
+      - cluster.routing.allocation.disk.watermark.flood_stage=1b
+      - node.store.allow_mmap=false
+      - ingest.geoip.downloader.enabled=false
+      - xpack.security.enabled=true
+      - xpack.security.authc.token.enabled=true
+      - xpack.security.audit.enabled=true
+      - xpack.security.authc.realms.file.file1.order=0
+      - xpack.security.authc.realms.native.native1.order=1
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.client_authentication=optional
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.key=/usr/share/elasticsearch/config/certificates/cert.key
+      - xpack.security.transport.ssl.certificate=/usr/share/elasticsearch/config/certificates/cert.pem
+      - xpack.security.transport.ssl.certificate_authorities=/usr/share/elasticsearch/config/certificates/ca.pem
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.verification_mode=certificate
+      - xpack.security.http.ssl.key=/usr/share/elasticsearch/config/certificates/cert.key
+      - xpack.security.http.ssl.certificate=/usr/share/elasticsearch/config/certificates/cert.pem
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/certificates/ca.pem
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == vm-04
+          #- node.labels.type == data
+      resources:
+        limits:
+          memory: 2g
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    ports:
+      - target: 9200
+        published: 9200
+        mode: host  
+
+  es_ingest:
+    <<: *common-elasticsearch
+    environment:
+      - node.name=es_ingest
+      - discovery.seed_hosts=es_master_node_1,es_master_node_2,es_master_node_3,es_data
+      - cluster.initial_master_nodes=es_master_node_1,es_master_node_2,es_master_node_3
+      - cluster.name=my-elasticsearch-cluster
+      - bootstrap.memory_lock=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - path.repo=/tmp/es-repo
+      - node.attr.testattr=test
+      - cluster.routing.allocation.disk.watermark.low=1b
+      - cluster.routing.allocation.disk.watermark.high=1b
+      - cluster.routing.allocation.disk.watermark.flood_stage=1b
+      - node.store.allow_mmap=false
+      - ingest.geoip.downloader.enabled=false
+      - xpack.security.enabled=true
+      - xpack.security.authc.token.enabled=true
+      - xpack.security.audit.enabled=true
+      - xpack.security.authc.realms.file.file1.order=0
+      - xpack.security.authc.realms.native.native1.order=1
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.client_authentication=optional
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.key=/usr/share/elasticsearch/config/certificates/cert.key
+      - xpack.security.transport.ssl.certificate=/usr/share/elasticsearch/config/certificates/cert.pem
+      - xpack.security.transport.ssl.certificate_authorities=/usr/share/elasticsearch/config/certificates/ca.pem
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.verification_mode=certificate
+      - xpack.security.http.ssl.key=/usr/share/elasticsearch/config/certificates/cert.key
+      - xpack.security.http.ssl.certificate=/usr/share/elasticsearch/config/certificates/cert.pem
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/certificates/ca.pem
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == vm-05
+          #- node.labels.type == ingest
+      resources:
+        limits:
+          memory: 1g
+    volumes:
+      - es_ingest:/usr/share/elasticsearch/data
+    ports:
+      - target: 9200
+        published: 9200
+        mode: host  
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:v8.12.0
+    environment:
+      - ELASTICSEARCH_HOSTS=http://es_master_node_1:9200,http://es_master_node_2:9200,http://es_master_node_3:9200
+      # - KIBANA_INDEX=.kibana
+      # - SERVER_NAME=kibana.example.com
+    networks:
+      - internal
+      - net-traefik
+    deploy:
+      placement:
+        constraints:
+          - node.role == worker
+      resources:
+        limits:
+          memory: 1g
+      labels:
+        - traefik.enable=true
+        - traefik.constraint-label=default-traefik
+        - traefik.docker.network=net-traefik
+        - traefik.http.routers.${PR:-PR}-${ENV:-ENV}-kibana.entrypoints=websecure
+        - traefik.http.routers.${PR:-PR}-${ENV:-ENV}-kibana.rule=Host(`portainer.${DOMAIN?Variable not set}`)
+        - traefik.http.routers.${PR:-PR}-${ENV:-ENV}-kibana.tls=true
+        - traefik.http.routers.${PR:-PR}-${ENV:-ENV}-kibana.service=${PR:-PR}-${ENV:-ENV}-kibana
+        - traefik.http.services.${PR:-PR}-${ENV:-ENV}-kibana.loadbalancer.server.port=5601
+
+
+volumes:
+  es_master_node_1_data:
+  es_master_node_2_data:
+  es_master_node_3_data:
+  es_data:
+  es_ingest:
+
+configs:
+  elasticsearch-tls.key:
+    name: elasticsearch-tls-v1.0.key
+    external: true
+  elasticsearch-tls.pem:
+    name: elasticsearch-tls-v1.0.pem
+    external: true
+  elasticsearch-trustca.pem:
+    name: elasticsearch-trustca-v1.0.pem
+    external: true
