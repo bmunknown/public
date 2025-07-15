@@ -1,0 +1,272 @@
+# Copyright Broadcom, Inc. All Rights Reserved.
+# SPDX-License-Identifier: APACHE-2.0
+configs:
+  dnsdist_config-server.conf:
+    file: config/server.conf
+  dnsdist_config-blocklist.txt:
+    file: config/blocklist.txt
+
+services:
+  dnsdist:
+    image: ${IMAGE_PDNS_DNSDIST:-chrisss404/powerdns:latest-dnsdist}
+    environment:
+      DNSDIST_API_KEY: "${PDNS_ALL_API_KEY}"
+      DNSDIST_PLAIN: "yes"
+      DNSDIST_QUIET: "no"
+      DNSDIST_WEBSERVER: "yes"
+      DNSDIST_WEBSERVER_PASSWORD: "${PDNS_ALL_WEBSERVER_PASSWORD:-dns-password}"
+    configs:
+      - source: dnsdist_config-server.conf
+        target: /etc/dnsdist/conf.d/server.conf
+      - source: dnsdist_config-blocklist.txt
+        target: /etc/dnsdist/blocklist.txt
+    networks:
+      internal:
+    ports:
+      - target: 53
+        published: ${PUBLISHED_PORT_DNSDIST:-5300}
+        protocol: tcp
+        mode: host
+      - target: 53
+        published: ${PUBLISHED_PORT_DNSDIST:-5300}
+        protocol: udp
+        mode: host
+      - target: 8083
+        published: ${PUBLISHED_PORT_WEB_DNSDIST:-5380}
+        protocol: tcp
+        mode: host
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.labels.${LABEL_PDNS_DNSDIST:-service-pdns-dnsdist} == true
+          - node.role != manager
+
+  recursor:
+    image: ${IMAGE_PDNS_RECURSOR:-pschiffe/pdns-recursor}
+    environment:
+      PDNS_api_key: "${PDNS_ALL_API_KEY}"
+      PDNS_webserver: "yes"
+      PDNS_webserver_address: "0.0.0.0"
+      PDNS_webserver_password: "secret2"
+      PDNS_forward_zones_recurse: "${RECURSOR_FORWARD_ZONES_RECURSE}"
+    networks:
+      internal:
+    ports:
+      - target: 53
+        published: ${PUBLISHED_PORT_RECURSOR:-5302}
+        protocol: tcp
+        mode: ingress
+      - target: 53
+        published: ${PUBLISHED_PORT_RECURSOR:-5302}
+        protocol: udp
+        mode: ingress
+      - target: 8082
+        published: ${PUBLISHED_PORT_WEB_RECURSOR:-5382}
+        protocol: tcp
+        mode: ingress
+    deploy:
+      mode: replicated
+      replicas: 3
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.role != manager
+
+  phpmyadmin:
+    image: ${IMAGE_PHP_ADMIN:-phpmyadmin:5}
+    networks:
+      internal:
+    ports:
+      - '80'
+    environment:
+      PMA_HOST: mariadb-master
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    healthcheck:
+      test: ['CMD', 'curl', '-fsSL', 'http://127.0.0.1:80']
+      timeout: 10s
+      retries: 5
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.role != manager
+          
+
+  mariadb-master:
+    image: ${IMAGE_MARIADB:-docker.io/bitnami/mariadb:11.4}
+    networks:
+      internal:
+    volumes:
+      - 'mariadb_master_data:/bitnami/mariadb'
+    environment:
+      MARIADB_REPLICATION_MODE: "master"
+      MARIADB_REPLICATION_USER: "repl_user"
+      MARIADB_REPLICATION_PASSWORD: "${MARIADB_REPLICATION_PASSWORD:-repl_password}"
+      MARIADB_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
+      MARIADB_DATABASE: "powerdns"
+      MARIADB_USER: "powerdns"
+      MARIADB_PASSWORD: "${MARIADB_PASSWORD:-db_pdns_password}"
+    healthcheck:
+      test: ['CMD', '/opt/bitnami/scripts/mariadb/healthcheck.sh']
+      interval: 15s
+      timeout: 5s
+      retries: 6
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.labels.${LABEL_PDNS_DB_MASTER:-service-pdns-db-master} == true
+          - node.role != manager
+
+
+  mariadb-slave:
+    image: ${IMAGE_MARIADB:-docker.io/bitnami/mariadb:11.4}
+    networks:
+      internal:
+    environment:
+      MARIADB_REPLICATION_MODE: "slave"
+      MARIADB_REPLICATION_USER: "repl_user"
+      MARIADB_REPLICATION_PASSWORD: "${MARIADB_REPLICATION_PASSWORD:-repl_password}"
+      MARIADB_MASTER_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
+      MARIADB_DATABASE: "powerdns"
+      MARIADB_USER: "powerdns"
+      MARIADB_PASSWORD: "${MARIADB_PASSWORD:-db_pdns_password}"
+      MARIADB_MASTER_HOST: "mariadb-master"
+      MARIADB_MASTER_PORT_NUMBER: "3306"
+    healthcheck:
+      test: ['CMD', '/opt/bitnami/scripts/mariadb/healthcheck.sh']
+      interval: 15s
+      timeout: 5s
+      retries: 6
+    deploy:
+      mode: replicated
+      replicas: 3
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.role != manager
+
+  authoritative-master:
+    image: ${IMAGE_PDNS_AUTHORITATIVE:-pschiffe/pdns-mysql:latest}
+    hostname: pdns-master
+    networks:
+      internal:
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      PDNS_gmysql_host: "mariadb-master"
+      PDNS_gmysql_port: "3306"
+      PDNS_gmysql_dbname: "powerdns"
+      PDNS_gmysql_user: "powerdns"
+      PDNS_gmysql_password: "${MARIADB_PASSWORD:-db_pdns_password}"
+      PDNS_primary: "yes"
+      PDNS_api: "yes"
+      PDNS_api_key: "${PDNS_ALL_API_KEY}"
+      PDNS_webserver: "yes"
+      PDNS_webserver_address: "0.0.0.0"
+      PDNS_webserver_allow_from: "0.0.0.0/0"
+      PDNS_version_string: "anonymous"
+      PDNS_default_ttl: "1500"
+      PDNS_allow_axfr_ips: "0.0.0.0"
+      PDNS_only_notify: "0.0.0.0"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.role != manager  
+
+  authoritative-slave:
+    image: ${IMAGE_PDNS_AUTHORITATIVE:-pschiffe/pdns-mysql:latest}
+    hostname: pdns-slave
+    networks:
+      internal:
+    ports:
+      - target: 53
+        published: ${PUBLISHED_PORT_AUTHORITATIVE:-5301}
+        protocol: tcp
+        mode: ingress
+      - target: 53
+        published: ${PUBLISHED_PORT_AUTHORITATIVE:-5301}
+        protocol: udp
+        mode: ingress
+      - target: 8081
+        published: ${PUBLISHED_PORT_WEB_AUTHORITATIVE:-5381}
+        protocol: tcp
+        mode: ingress
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      SKIP_DB_INIT: "true"
+      SKIP_DB_CREATE: "true"
+      PDNS_gmysql_host: "mariadb-slave"
+      PDNS_gmysql_port: "3306"
+      PDNS_gmysql_dbname: "powerdns"
+      PDNS_gmysql_user: "powerdns"
+      PDNS_gmysql_password: "${MARIADB_PASSWORD:-db_pdns_password}"
+      # PDNS_secondary: "yes"
+      # PDNS_autosecondary: "yes"
+      PDNS_primary: "yes"
+      PDNS_api: "yes"
+      PDNS_api: "false"
+      PDNS_webserver: "yes"
+      PDNS_webserver_address: "0.0.0.0"
+      PDNS_webserver_allow_from: "0.0.0.0/0"
+      PDNS_version_string: "anonymous"
+      PDNS_default_ttl: "1500"
+      PDNS_allow_axfr_ips: "0.0.0.0"
+      PDNS_only_notify: "0.0.0.0"
+    deploy:
+      mode: replicated
+      replicas: 4
+      placement:
+        constraints:
+          - node.platform.os == linux  
+          - node.role != manager
+
+  pdns-admin:
+    image: ${IMAGE_PDNS_ADMIN:-pschiffe/pdns-admin}
+    networks:
+      internal:
+    ports:
+      - target: 8080
+        published: ${PUBLISHED_PORT_WEB_ADMIN:-8080}
+        protocol: tcp
+        mode: ingress
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-bundle.crt:ro
+      - /etc/ssl/certs/ca-certificates.crt:/etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt
+    environment:
+      PDNS_ADMIN_SQLA_DB_HOST: "mariadb-master"
+      PDNS_ADMIN_SQLA_DB_PORT: "3306"
+      PDNS_ADMIN_SQLA_DB_NAME: "powerdnsadmin"
+      PDNS_ADMIN_SQLA_DB_USER: "root"
+      PDNS_ADMIN_SQLA_DB_PASSWORD: "${MARIADB_ROOT_PASSWORD}"
+      PDNS_API_URL: "http://authoritative-master:8081/"
+      PDNS_VERSION: "4.9"
+      PDNS_API_KEY: "${PDNS_ALL_API_KEY}"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.platform.os == linux
+          - node.role != manager  
+
+
+volumes:
+  mariadb_master_data:
+    driver: local
+networks:
+  internal:

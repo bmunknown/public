@@ -1,0 +1,41 @@
+IMAGE_PDNS_DNSDIST=chrisss404/powerdns:latest-dnsdist
+IMAGE_PDNS_RECURSOR=pschiffe/pdns-recursor
+IMAGE_PDNS_AUTHORITATIVE=pschiffe/pdns-mysql:latest
+IMAGE_PDNS_ADMIN=pschiffe/pdns-admin
+IMAGE_MARIADB=docker.io/bitnami/mariadb:11.4
+IMAGE_PHP_ADMIN=phpmyadmin:5
+
+
+
+
+## SERVICE LABELS
+LABEL_PDNS_DNSDIST=service-pdns-dnsdist
+LABEL_PDNS_DB_MASTER=service-pdns-db-master
+
+## Published Port
+PUBLISHED_PORT_DNSDIST=53
+PUBLISHED_PORT_AUTHORITATIVE=5301
+PUBLISHED_PORT_RECURSOR=5302
+
+PUBLISHED_PORT_WEB_DNSDIST=5380
+PUBLISHED_PORT_WEB_AUTHORITATIVE=5381
+PUBLISHED_PORT_WEB_RECURSOR=5382
+PUBLISHED_PORT_WEB_ADMIN=58080
+
+## Ingress Traefik
+PR=est
+ENV=prod
+DOMAIN_DNSDIST=dnsdist.edge.internal.system
+DOMAIN_RECURSOR=recursor.edge.internal.system
+DOMAIN_AUTHORITATIVE=authoritative.edge.internal.system
+DOMAIN_PDNS_ADMIN=pda.edge.internal.system
+
+## Other 
+### DNS Dist
+PDNS_ALL_API_KEY=api-secret-dnsdist
+PDNS_ALL_WEBSERVER_PASSWORD=dns-password
+RECURSOR_FORWARD_ZONES_RECURSE=.=8.8.8.8;8.8.4.4
+
+MARIADB_ROOT_PASSWORD=root_password
+MARIADB_REPLICATION_PASSWORD=replpassword
+MARIADB_PASSWORD=pdns_password
